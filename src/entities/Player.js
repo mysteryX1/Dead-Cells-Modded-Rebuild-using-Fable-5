@@ -35,9 +35,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     };
   }
 
+  // 每帧调用的循环动画（idle/run/jump/fall）：已播完同名单次动画时不重启
   playAnim(key) {
-    // 动画未注册（素材兜底为占位纹理）时静默跳过，保留色块/透明度反馈
-    if (this.scene.anims.exists(key)) this.anims.play(key, true);
+    if (!this.scene.anims.exists(key)) return;
+    const cur = this.anims.currentAnim;
+    if (cur && cur.key === key && !this.anims.isPlaying) return; // 单次动画播完后不重启
+    this.anims.play(key, true);
+  }
+
+  // 状态入口事件调用（roll/attack/hurt/dead 等单次动画）：始终强制播放，保证重入时重播
+  playAnimForce(key) {
+    if (!this.scene.anims.exists(key)) return;
+    this.anims.play(key, false);
   }
 
   isInvulnerable(time) {
@@ -98,7 +107,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.fsm = PState.ROLL;
       this.rollUntil = time + PLAYER.rollMs;
       this.setVelocityX(this.facing * PLAYER.rollSpeed);
-      this.playAnim('player-roll');
+      this.playAnimForce('player-roll');
       if (!this.scene.anims.exists('player-roll')) this.setAlpha(0.6); // 占位模式的翻滚提示
     }
 
@@ -133,7 +142,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.body.blocked.down) this.setVelocityX(0); // 地面攻击站定
     this.scene.spawnAttackHitbox(this, PLAYER.attackDamage[step]);
     const animKey = step === 0 ? 'player-attack1' : 'player-attack2';
-    this.playAnim(animKey);
+    this.playAnimForce(animKey);
     if (!this.scene.anims.exists(animKey)) {
       this.setTint(step === 0 ? 0xffe080 : 0xffa040); // 占位模式的攻击色块反馈
     }
@@ -157,7 +166,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.hurtUntil = time + 200;
     this.invulnUntil = time + PLAYER.hurtInvulnMs;
     this.clearTint();
-    this.playAnim('player-hurt');
+    this.playAnimForce('player-hurt');
     this.setVelocity(Math.sign(this.x - fromX) * PLAYER.knockback, -150);
     this.scene.tweens.add({
       targets: this, alpha: 0.3, yoyo: true, repeat: 5,
@@ -171,7 +180,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = 0;
     this.fsm = PState.DEAD;
     this.setVelocityX(0);
-    this.playAnim('player-dead');
+    this.playAnimForce('player-dead');
     if (!this.scene.anims.exists('player-dead')) this.setTint(0x666666);
     this.scene.events.emit('player-died');
   }

@@ -20,9 +20,18 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.body.setOffset((this.width - 22) / 2, this.height - 38);
   }
 
+  // 每帧调用的循环动画（walk）：已播完同名单次动画时不重启
   playAnim(key) {
-    // 动画未注册（素材兜底为占位纹理）时静默跳过，保留色块反馈
-    if (this.scene.anims.exists(key)) this.anims.play(key, true);
+    if (!this.scene.anims.exists(key)) return;
+    const cur = this.anims.currentAnim;
+    if (cur && cur.key === key && !this.anims.isPlaying) return; // 单次动画播完后不重启
+    this.anims.play(key, true);
+  }
+
+  // 状态入口事件调用（windup/hurt/dead 等单次动画）：始终强制播放，保证重入时重播
+  playAnimForce(key) {
+    if (!this.scene.anims.exists(key)) return;
+    this.anims.play(key, false);
   }
 
   update(time) {
@@ -55,7 +64,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       this.dir = dx > 0 ? 1 : -1;
       this.setVelocityX(0);
       this.setFlipX(this.dir === -1);
-      this.playAnim('zombie-windup');
+      this.playAnimForce('zombie-windup');
       if (!this.scene.anims.exists('zombie-windup')) {
         this.setTint(0xff6060); // 占位模式前摇提示：变红，给玩家翻滚窗口
         this.scene.time.delayedCall(ZOMBIE.windupMs, () => {
@@ -96,7 +105,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.fsm = ZState.STAGGER;
     this.staggerUntil = time + ZOMBIE.staggerMs;
     this.setVelocityX(Math.sign(this.x - fromX) * ZOMBIE.knockback);
-    this.playAnim('zombie-hurt');
+    this.playAnimForce('zombie-hurt');
     this.setTintFill(0xffffff); // 受击白闪（有无真实动画都保留，打击感反馈）
     this.scene.time.delayedCall(80, () => {
       if (this.active && this.fsm !== ZState.DEAD) this.clearTint();
@@ -107,7 +116,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.fsm = ZState.DEAD;
     this.body.enable = false;
     this.clearTint();
-    this.playAnim('zombie-dead');
+    this.playAnimForce('zombie-dead');
     this.scene.tweens.add({
       targets: this, alpha: 0, y: this.y - 10, duration: 300,
       onComplete: () => this.destroy(),
