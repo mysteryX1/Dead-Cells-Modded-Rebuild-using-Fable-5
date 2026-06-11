@@ -94,7 +94,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.setAlpha(0.6); // 翻滚视觉提示（接入真实动画前的临时表现）
     }
 
-    // 翻滚与攻击的入口在 Task 4 / Task 5 中加入
+    // 攻击
+    if (Phaser.Input.Keyboard.JustDown(keys.attack)) {
+      this.startAttack(time, 0);
+    }
   }
 
   updateRoll(time) {
@@ -105,5 +108,24 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.setAlpha(1);
     }
   }
-  updateAttack(time) {} // Task 5 实现
+  startAttack(time, step) {
+    this.fsm = PState.ATTACK;
+    this.comboStep = step;
+    this.attackQueued = false;
+    this.attackUntil = time + PLAYER.attackDurationMs;
+    if (this.body.blocked.down) this.setVelocityX(0); // 地面攻击站定
+    this.scene.spawnAttackHitbox(this, PLAYER.attackDamage[step]);
+    this.setTint(step === 0 ? 0xffe080 : 0xffa040); // 临时攻击表现，Task 8 换动画
+  }
+
+  updateAttack(time) {
+    if (Phaser.Input.Keyboard.JustDown(this.keys.attack) && this.comboStep === 0) {
+      this.attackQueued = true; // 第一段期间按 J，预约第二段
+    }
+    if (time >= this.attackUntil) {
+      this.clearTint();
+      if (this.attackQueued && this.comboStep === 0) this.startAttack(time, 1);
+      else this.fsm = PState.MOVE;
+    }
+  }
 }
