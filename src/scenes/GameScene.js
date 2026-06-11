@@ -1,5 +1,6 @@
 import { TILE } from '../config.js';
 import { LEVEL } from '../level.js';
+import Player from '../entities/Player.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -8,9 +9,17 @@ export default class GameScene extends Phaser.Scene {
     this.buildLevel();
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
-    // 临时占位玩家，Task 3 替换为 Player 实例
-    this.add.image(this.playerSpawn.x, this.playerSpawn.y, 'player');
-    this.cameras.main.centerOn(this.playerSpawn.x, this.playerSpawn.y);
+    this.player = new Player(this, this.playerSpawn.x, this.playerSpawn.y);
+    this.physics.add.collider(this.player, this.solids);
+    this.physics.add.collider(
+      this.player, this.platforms, null,
+      (player) => this.time.now >= player.dropThroughUntil,
+    );
+    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+  }
+
+  update(time) {
+    this.player.update(time);
   }
 
   buildLevel() {
