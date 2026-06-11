@@ -1,4 +1,4 @@
-import { TILE, PLAYER, ZOMBIE } from '../config.js';
+import { TILE, PLAYER, ZOMBIE, KEYS } from '../config.js';
 import { LEVEL } from '../level.js';
 import Player from '../entities/Player.js';
 import Zombie from '../entities/Zombie.js';
@@ -32,11 +32,64 @@ export default class GameScene extends Phaser.Scene {
         z.takeHit(hb.damage, this.player.x, this.time.now);
       }
     });
+
+    this.keyEnter = this.input.keyboard.addKey(KEYS.enter);
+    this.keyRestart = this.input.keyboard.addKey(KEYS.restart);
+    this.ended = false;
+    this.doorHint = this.add.text(this.door.x, this.door.y - 70, '按 W 进入', {
+      fontSize: '14px', color: '#ffd700',
+    }).setOrigin(0.5).setVisible(false);
+    this.createUI();
+  }
+
+  createUI() {
+    // scene.restart() 后 events 保留旧监听，先清掉避免重复计数
+    this.events.off('zombie-died');
+    this.events.off('player-died');
+    this.uiHp = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.uiEnemies = this.add.text(20, 44, '', { fontSize: '14px', color: '#ffffff' })
+      .setScrollFactor(0).setDepth(10);
+    this.add.text(480, 532, 'A/D 移动  S 下穿  K 跳/二段跳  J 攻击  L 翻滚  W 进门  R 重开', {
+      fontSize: '13px', color: '#8888aa',
+    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(10);
+    this.remaining = this.zombies.length;
+    this.events.on('zombie-died', () => { this.remaining -= 1; });
+    this.events.on('player-died', () => this.showBanner('YOU DIED', '#cc2222'));
+  }
+
+  drawUI() {
+    const ratio = Math.max(0, this.player.hp / PLAYER.maxHp);
+    this.uiHp.clear()
+      .fillStyle(0x000000, 0.6).fillRect(18, 18, 204, 18)
+      .fillStyle(0xcc2233, 1).fillRect(20, 20, 200 * ratio, 14)
+      .lineStyle(2, 0xddddee, 1).strokeRect(18, 18, 204, 18);
+    this.uiEnemies.setText(`敌人 ${this.remaining}`);
+  }
+
+  showBanner(text, color) {
+    this.ended = true;
+    this.add.text(480, 240, text, { fontSize: '48px', color, fontStyle: 'bold' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(20);
+    this.add.text(480, 290, '按 R 重新开始', { fontSize: '18px', color: '#ccccdd' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(20);
   }
 
   update(time) {
+    if (this.ended) {
+      if (Phaser.Input.Keyboard.JustDown(this.keyRestart)) this.scene.restart();
+      return;
+    }
     this.player.update(time);
     this.zombies.forEach((z) => { if (z.active) z.update(time); });
+    this.drawUI();
+
+    const nearDoor = Math.abs(this.player.x - this.door.x) < 40
+      && Math.abs(this.player.y - this.door.y) < 80;
+    this.doorHint.setVisible(this.remaining === 0 && nearDoor);
+    if (this.remaining === 0 && nearDoor
+        && Phaser.Input.Keyboard.JustDown(this.keyEnter)) {
+      this.showBanner('通关！', '#ffd700');
+    }
   }
 
   spawnAttackHitbox(player, damage) {
