@@ -82,13 +82,28 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // 下穿单向平台
-    if (onFloor && keys.down.isDown && Phaser.Input.Keyboard.JustDown(keys.down)) {
+    if (onFloor && Phaser.Input.Keyboard.JustDown(keys.down)) {
       this.dropThroughUntil = time + 250;
+    }
+
+    // 翻滚
+    if (Phaser.Input.Keyboard.JustDown(keys.roll) && time >= this.rollReadyAt) {
+      this.fsm = PState.ROLL;
+      this.rollUntil = time + PLAYER.rollMs;
+      this.setVelocityX(this.facing * PLAYER.rollSpeed);
+      this.setAlpha(0.6); // 翻滚视觉提示（接入真实动画前的临时表现）
     }
 
     // 翻滚与攻击的入口在 Task 4 / Task 5 中加入
   }
 
-  updateRoll(time) {} // Task 4 实现
+  updateRoll(time) {
+    this.setVelocityX(this.facing * PLAYER.rollSpeed); // 不可转向，速度恒定
+    if (time >= this.rollUntil) {
+      this.fsm = PState.MOVE;
+      this.rollReadyAt = time + PLAYER.rollCooldownMs;
+      this.setAlpha(1);
+    }
+  }
   updateAttack(time) {} // Task 5 实现
 }
