@@ -95,7 +95,9 @@ export default class GameScene extends Phaser.Scene {
   spawnAttackHitbox(player, damage) {
     const { attackRangeX, attackRangeY, attackDurationMs } = PLAYER;
     const x = player.x + player.facing * (attackRangeX / 2 + 10);
-    const hb = this.add.rectangle(x, player.y, attackRangeX, attackRangeY, 0xffffff, 0.25);
+    // 有真实攻击动画时隐藏判定框；占位模式下它是唯一的攻击反馈，保持可见
+    const alpha = this.anims.exists('player-attack1') ? 0 : 0.25;
+    const hb = this.add.rectangle(x, player.y, attackRangeX, attackRangeY, 0xffffff, alpha);
     this.attackHitboxes.add(hb);
     hb.body.setAllowGravity(false);
     hb.damage = damage;
@@ -105,11 +107,14 @@ export default class GameScene extends Phaser.Scene {
 
   zombieAttack(zombie) {
     if (zombie.fsm === 'dead' || !zombie.active) return;
+    zombie.playAnim('zombie-attack');
     const w = ZOMBIE.attackRange;
     const rect = new Phaser.Geom.Rectangle(
       zombie.dir === 1 ? zombie.x : zombie.x - w, zombie.y - 20, w, 40,
     );
-    const fx = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0xff4040, 0.25);
+    // 有真实攻击动画时弱化红色判定提示；占位模式保持原样
+    const fxAlpha = this.anims.exists('zombie-attack') ? 0.15 : 0.25;
+    const fx = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0xff4040, fxAlpha);
     this.time.delayedCall(100, () => fx.destroy());
     if (Phaser.Geom.Intersects.RectangleToRectangle(rect, this.player.getBounds())) {
       this.player.takeHit(ZOMBIE.attackDamage, zombie.x, this.time.now);

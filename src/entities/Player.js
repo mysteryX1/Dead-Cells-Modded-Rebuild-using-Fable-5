@@ -10,6 +10,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.body.setSize(20, 38);
+    // 底对齐：真实贴图帧（64x64）比碰撞体大，保证脚部贴地；占位纹理下等价于默认居中
+    this.body.setOffset((this.width - 20) / 2, this.height - 38);
     this.setCollideWorldBounds(true);
 
     this.hp = PLAYER.maxHp;
@@ -31,6 +33,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       left: kb.addKey(KEYS.left), right: kb.addKey(KEYS.right), down: kb.addKey(KEYS.down),
       jump: kb.addKey(KEYS.jump), attack: kb.addKey(KEYS.attack), roll: kb.addKey(KEYS.roll),
     };
+  }
+
+  playAnim(key) {
+    // 动画未注册（素材兜底为占位纹理）时静默跳过，保留色块/透明度反馈
+    if (this.scene.anims.exists(key)) this.anims.play(key, true);
   }
 
   isInvulnerable(time) {
@@ -91,12 +98,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.fsm = PState.ROLL;
       this.rollUntil = time + PLAYER.rollMs;
       this.setVelocityX(this.facing * PLAYER.rollSpeed);
-      this.setAlpha(0.6); // 翻滚视觉提示（接入真实动画前的临时表现）
+      this.playAnim('player-roll');
+      if (!this.scene.anims.exists('player-roll')) this.setAlpha(0.6); // 占位模式的翻滚提示
     }
 
     // 攻击
     if (Phaser.Input.Keyboard.JustDown(keys.attack)) {
       this.startAttack(time, 0);
+    }
+
+    // 移动动画（仅在仍处于 MOVE 状态时，避免覆盖本帧刚进入的翻滚/攻击动画）
+    if (this.fsm === PState.MOVE) {
+      if (!this.body.blocked.down) {
+        this.playAnim(this.body.velocity.y < 0 ? 'player-jump' : 'player-fall');
+      } else {
+        this.playAnim(vx !== 0 ? 'player-run' : 'player-idle');
+      }
     }
   }
 
@@ -115,7 +132,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.attackUntil = time + PLAYER.attackDurationMs;
     if (this.body.blocked.down) this.setVelocityX(0); // 地面攻击站定
     this.scene.spawnAttackHitbox(this, PLAYER.attackDamage[step]);
-    this.setTint(step === 0 ? 0xffe080 : 0xffa040); // 临时攻击表现，Task 8 换动画
+    const animKey = step === 0 ? 'player-attack1' : 'player-attack2';
+    this.playAnim(animKey);
+    if (!this.scene.anims.exists(animKey)) {
+      this.setTint(step === 0 ? 0xffe080 : 0xffa040); // 占位模式的攻击色块反馈
+    }
   }
 
   updateAttack(time) {
@@ -136,6 +157,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.hurtUntil = time + 200;
     this.invulnUntil = time + PLAYER.hurtInvulnMs;
     this.clearTint();
+    this.playAnim('player-hurt');
     this.setVelocity(Math.sign(this.x - fromX) * PLAYER.knockback, -150);
     this.scene.tweens.add({
       targets: this, alpha: 0.3, yoyo: true, repeat: 5,
@@ -149,7 +171,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = 0;
     this.fsm = PState.DEAD;
     this.setVelocityX(0);
-    this.setTint(0x666666);
+    this.playAnim('player-dead');
+    if (!this.scene.anims.exists('player-dead')) this.setTint(0x666666);
     this.scene.events.emit('player-died');
   }
 }

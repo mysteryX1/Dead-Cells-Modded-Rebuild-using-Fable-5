@@ -16,6 +16,13 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.staggerUntil = 0;
     this.windupUntil = 0;
     this.nextAttackAt = 0;
+    // 底对齐：真实贴图帧（64x64）比碰撞体大，保证脚部贴地；占位纹理下等价于默认居中
+    this.body.setOffset((this.width - 22) / 2, this.height - 38);
+  }
+
+  playAnim(key) {
+    // 动画未注册（素材兜底为占位纹理）时静默跳过，保留色块反馈
+    if (this.scene.anims.exists(key)) this.anims.play(key, true);
   }
 
   update(time) {
@@ -47,10 +54,14 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       this.windupUntil = time + ZOMBIE.windupMs;
       this.dir = dx > 0 ? 1 : -1;
       this.setVelocityX(0);
-      this.setTint(0xff6060); // 前摇提示：变红，给玩家翻滚窗口
-      this.scene.time.delayedCall(ZOMBIE.windupMs, () => {
-        if (this.active && this.fsm !== ZState.DEAD) this.clearTint();
-      });
+      this.setFlipX(this.dir === -1);
+      this.playAnim('zombie-windup');
+      if (!this.scene.anims.exists('zombie-windup')) {
+        this.setTint(0xff6060); // 占位模式前摇提示：变红，给玩家翻滚窗口
+        this.scene.time.delayedCall(ZOMBIE.windupMs, () => {
+          if (this.active && this.fsm !== ZState.DEAD) this.clearTint();
+        });
+      }
       return;
     }
 
@@ -64,6 +75,11 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       this.setVelocityX(this.dir * ZOMBIE.speed);
     }
     this.setFlipX(this.dir === -1);
+    // 出招动画（单次）播完前不被走路动画打断
+    const cur = this.anims.currentAnim;
+    if (!(this.anims.isPlaying && cur && cur.key === 'zombie-attack')) {
+      this.playAnim('zombie-walk');
+    }
   }
 
   hasFloorAhead() {
@@ -80,7 +96,8 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.fsm = ZState.STAGGER;
     this.staggerUntil = time + ZOMBIE.staggerMs;
     this.setVelocityX(Math.sign(this.x - fromX) * ZOMBIE.knockback);
-    this.setTintFill(0xffffff); // 受击白闪
+    this.playAnim('zombie-hurt');
+    this.setTintFill(0xffffff); // 受击白闪（有无真实动画都保留，打击感反馈）
     this.scene.time.delayedCall(80, () => {
       if (this.active && this.fsm !== ZState.DEAD) this.clearTint();
     });
@@ -89,6 +106,8 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
   die() {
     this.fsm = ZState.DEAD;
     this.body.enable = false;
+    this.clearTint();
+    this.playAnim('zombie-dead');
     this.scene.tweens.add({
       targets: this, alpha: 0, y: this.y - 10, duration: 300,
       onComplete: () => this.destroy(),
