@@ -128,4 +128,28 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       else this.fsm = PState.MOVE;
     }
   }
+
+  takeHit(damage, fromX, time) {
+    if (this.fsm === PState.DEAD || this.isInvulnerable(time)) return;
+    this.hp -= damage;
+    this.fsm = PState.HURT;
+    this.hurtUntil = time + 200;
+    this.invulnUntil = time + PLAYER.hurtInvulnMs;
+    this.clearTint();
+    this.setVelocity(Math.sign(this.x - fromX) * PLAYER.knockback, -150);
+    this.scene.tweens.add({
+      targets: this, alpha: 0.3, yoyo: true, repeat: 5,
+      duration: PLAYER.hurtInvulnMs / 12,
+      onComplete: () => this.setAlpha(1),
+    });
+    if (this.hp <= 0) this.die();
+  }
+
+  die() {
+    this.hp = 0;
+    this.fsm = PState.DEAD;
+    this.setVelocityX(0);
+    this.setTint(0x666666);
+    this.scene.events.emit('player-died');
+  }
 }

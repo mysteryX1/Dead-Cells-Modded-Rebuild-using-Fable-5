@@ -1,6 +1,7 @@
-import { TILE, PLAYER } from '../config.js';
+import { TILE, PLAYER, ZOMBIE } from '../config.js';
 import { LEVEL } from '../level.js';
 import Player from '../entities/Player.js';
+import Zombie from '../entities/Zombie.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -17,10 +18,25 @@ export default class GameScene extends Phaser.Scene {
       (player) => this.time.now >= player.dropThroughUntil,
     );
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+    this.zombies = [];
+    this.zombieSpawns.forEach(({ x, y }) => {
+      const z = new Zombie(this, x, y);
+      this.physics.add.collider(z, this.solids);
+      this.physics.add.collider(z, this.platforms);
+      this.zombies.push(z);
+    });
+    this.physics.add.overlap(this.attackHitboxes, this.zombies, (hb, z) => {
+      if (!hb.hitSet.has(z)) {
+        hb.hitSet.add(z);
+        z.takeHit(hb.damage, this.player.x, this.time.now);
+      }
+    });
   }
 
   update(time) {
     this.player.update(time);
+    this.zombies.forEach((z) => { if (z.active) z.update(time); });
   }
 
   spawnAttackHitbox(player, damage) {
@@ -30,7 +46,21 @@ export default class GameScene extends Phaser.Scene {
     this.attackHitboxes.add(hb);
     hb.body.setAllowGravity(false);
     hb.damage = damage;
+    hb.hitSet = new Set();
     this.time.delayedCall(attackDurationMs, () => hb.destroy());
+  }
+
+  zombieAttack(zombie) {
+    if (zombie.fsm === 'dead' || !zombie.active) return;
+    const w = ZOMBIE.attackRange;
+    const rect = new Phaser.Geom.Rectangle(
+      zombie.dir === 1 ? zombie.x : zombie.x - w, zombie.y - 20, w, 40,
+    );
+    const fx = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0xff4040, 0.25);
+    this.time.delayedCall(100, () => fx.destroy());
+    if (Phaser.Geom.Intersects.RectangleToRectangle(rect, this.player.getBounds())) {
+      this.player.takeHit(ZOMBIE.attackDamage, zombie.x, this.time.now);
+    }
   }
 
   buildLevel() {
