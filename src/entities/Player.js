@@ -1,4 +1,4 @@
-import { KEYS, PLAYER } from '../config.js';
+import { KEYS, PLAYER, WEAPONS, CELL } from '../config.js';
 
 export const PState = {
   MOVE: 'move', ROLL: 'roll', ATTACK: 'attack', HURT: 'hurt', DEAD: 'dead',
@@ -10,11 +10,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.body.setSize(20, 38);
-    // 底对齐：真实贴图帧（64x64）比碰撞体大，保证脚部贴地；占位纹理下等价于默认居中
+    // 底对齐：立绘比碰撞体大时保证脚部贴地；占位纹理下等价于默认居中
     this.body.setOffset((this.width - 20) / 2, this.height - 38);
     this.setCollideWorldBounds(true);
 
-    this.hp = PLAYER.maxHp;
+    this.maxHp = PLAYER.maxHp;
+    this.hp = this.maxHp;
+    this.weaponKey = 'old';
+    this.atkMult = 1;
+    this.flatBonus = 0;
+    this.cells = 0;
     this.fsm = PState.MOVE;
     this.facing = 1;               // 1=右 -1=左
     this.canDoubleJump = false;
@@ -47,6 +52,41 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   playAnimForce(key) {
     if (!this.scene.anims.exists(key)) return;
     this.anims.play(key, false);
+  }
+
+  get weapon() { return WEAPONS[this.weaponKey]; }
+
+  // 实际伤害 = floor((武器伤害[段] + flatBonus) × atkMult)
+  computeDamage(step) {
+    return Math.floor((this.weapon.damage[step] + this.flatBonus) * this.atkMult);
+  }
+
+  addCells(n) {
+    this.cells += n;
+    this.flatBonus = Math.floor(this.cells / 10) * CELL.perTen;
+  }
+
+  // 进 Boss 房携带 / 调试兜底
+  getState() {
+    return {
+      hp: this.hp, maxHp: this.maxHp, weaponKey: this.weaponKey,
+      atkMult: this.atkMult, flatBonus: this.flatBonus, cells: this.cells,
+    };
+  }
+
+  applyState(s) { Object.assign(this, s); }
+
+  // 由 GameScene 移入：攻击范围与持续时间读当前武器
+  spawnAttackHitbox(damage) {
+    const w = this.weapon.attackRangeX;
+    const x = this.x + this.facing * (w / 2 + 10);
+    // 单帧立绘模式没有攻击动画，判定框就是攻击反馈，保持可见
+    const hb = this.scene.add.rectangle(x, this.y, w, PLAYER.attackRangeY, 0xffffff, 0.25);
+    this.scene.attackHitboxes.add(hb);
+    hb.body.setAllowGravity(false);
+    hb.damage = damage;
+    hb.hitSet = new Set();
+    this.scene.time.delayedCall(this.weapon.attackDurationMs, () => hb.destroy());
   }
 
   isInvulnerable(time) {
@@ -141,9 +181,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.fsm = PState.ATTACK;
     this.comboStep = step;
     this.attackQueued = false;
-    this.attackUntil = time + PLAYER.attackDurationMs;
+    this.attackUntil = time + this.weapon.attackDurationMs;
     if (this.body.blocked.down) this.setVelocityX(0); // 地面攻击站定
-    this.scene.spawnAttackHitbox(this, PLAYER.attackDamage[step]);
+    this.spawnAttackHitbox(this.computeDamage(step));
     const animKey = step === 0 ? 'player-attack1' : 'player-attack2';
     this.playAnimForce(animKey);
     if (!this.scene.anims.exists(animKey)) {

@@ -1,4 +1,4 @@
-import { TILE, PLAYER, ZOMBIE, KEYS } from '../config.js';
+import { TILE, ZOMBIE, KEYS } from '../config.js';
 import { LEVEL } from '../level.js';
 import Player from '../entities/Player.js';
 import Zombie from '../entities/Zombie.js';
@@ -62,7 +62,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   drawUI() {
-    const ratio = Math.max(0, this.player.hp / PLAYER.maxHp);
+    const ratio = Math.max(0, this.player.hp / this.player.maxHp);
     this.uiHp.clear()
       .fillStyle(0x000000, 0.6).fillRect(18, 18, 204, 18)
       .fillStyle(0xcc2233, 1).fillRect(20, 20, 200 * ratio, 14)
@@ -98,19 +98,6 @@ export default class GameScene extends Phaser.Scene {
         && Phaser.Input.Keyboard.JustDown(this.keyEnter)) {
       this.showBanner('通关！', '#ffd700');
     }
-  }
-
-  spawnAttackHitbox(player, damage) {
-    const { attackRangeX, attackRangeY, attackDurationMs } = PLAYER;
-    const x = player.x + player.facing * (attackRangeX / 2 + 10);
-    // 有真实攻击动画时隐藏判定框；占位模式下它是唯一的攻击反馈，保持可见
-    const alpha = this.anims.exists('player-attack1') ? 0 : 0.25;
-    const hb = this.add.rectangle(x, player.y, attackRangeX, attackRangeY, 0xffffff, alpha);
-    this.attackHitboxes.add(hb);
-    hb.body.setAllowGravity(false);
-    hb.damage = damage;
-    hb.hitSet = new Set();
-    this.time.delayedCall(attackDurationMs, () => hb.destroy());
   }
 
   zombieAttack(zombie) {
