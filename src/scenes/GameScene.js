@@ -2,6 +2,7 @@ import { TILE, KEYS } from '../config.js';
 import { LEVEL } from '../level.js';
 import Player from '../entities/Player.js';
 import Zombie from '../entities/Zombie.js';
+import Elite from '../entities/Elite.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -25,6 +26,12 @@ export default class GameScene extends Phaser.Scene {
       this.physics.add.collider(z, this.solids);
       this.physics.add.collider(z, this.platforms);
       this.zombies.push(z);
+    });
+    this.eliteSpawns.forEach(({ x, y }) => {
+      const e = new Elite(this, x, y);
+      this.physics.add.collider(e, this.solids);
+      this.physics.add.collider(e, this.platforms);
+      this.zombies.push(e); // 与小怪同组：攻击判定、敌人计数、AI 更新全部复用
     });
     // Phaser 在 group vs sprite 碰撞时会把 sprite 放到回调第一参（与注册顺序相反），
     // 不能依赖参数位置，按所属关系动态识别，否则 hb.hitSet 为 undefined 直接抛错卡死
@@ -102,12 +109,12 @@ export default class GameScene extends Phaser.Scene {
 
   zombieAttack(zombie) {
     if (zombie.fsm === 'dead' || !zombie.active) return;
-    zombie.playAnim('zombie-attack');
+    zombie.playAnim(`${zombie.animPrefix}-attack`);
     const w = zombie.cfg.attackRange;
     const rect = new Phaser.Geom.Rectangle(
       zombie.dir === 1 ? zombie.x : zombie.x - w, zombie.y - 20, w, 40,
     );
-    const fxAlpha = this.anims.exists('zombie-attack') ? 0.15 : 0.25;
+    const fxAlpha = this.anims.exists(`${zombie.animPrefix}-attack`) ? 0.15 : 0.25;
     const fx = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0xff4040, fxAlpha);
     this.time.delayedCall(100, () => fx.destroy());
     if (Phaser.Geom.Intersects.RectangleToRectangle(rect, this.player.getBounds())) {
@@ -119,6 +126,7 @@ export default class GameScene extends Phaser.Scene {
     this.solids = this.physics.add.staticGroup();
     this.platforms = this.physics.add.staticGroup();
     this.zombieSpawns = [];
+    this.eliteSpawns = [];
     this.worldW = Math.max(...LEVEL.map((r) => r.length)) * TILE;
     this.worldH = LEVEL.length * TILE;
     LEVEL.forEach((row, r) => {
@@ -136,6 +144,8 @@ export default class GameScene extends Phaser.Scene {
           this.playerSpawn = { x, y };
         } else if (ch === 'Z') {
           this.zombieSpawns.push({ x, y });
+        } else if (ch === 'E') {
+          this.eliteSpawns.push({ x, y });
         } else if (ch === 'D') {
           this.door = this.add.image(x, (r + 1) * TILE, 'door').setOrigin(0.5, 1);
         }

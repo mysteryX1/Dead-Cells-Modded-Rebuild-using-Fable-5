@@ -10,6 +10,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.cfg = cfg;
+    this.animPrefix = texture; // 动画 key 前缀，例如 'zombie' 或 'elite'
     this.body.setSize(cfg.bodyW, cfg.bodyH);
     // 底对齐：贴图比碰撞体大，保证脚部贴地
     this.body.setOffset((this.width - cfg.bodyW) / 2, this.height - cfg.bodyH);
@@ -71,8 +72,8 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       this.dir = dx > 0 ? 1 : -1;
       this.setVelocityX(0);
       this.setFlipX(this.dir === -1);
-      this.playAnimForce('zombie-windup');
-      if (!this.scene.anims.exists('zombie-windup')) {
+      this.playAnimForce(`${this.animPrefix}-windup`);
+      if (!this.scene.anims.exists(`${this.animPrefix}-windup`)) {
         this.setTint(0xff6060); // 占位模式前摇提示：变红，给玩家翻滚窗口
         this.scene.time.delayedCall(this.cfg.windupMs, () => {
           if (this.active && this.fsm !== ZState.DEAD) this.clearTint();
@@ -93,8 +94,8 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.setFlipX(this.dir === -1);
     // 出招动画（单次）播完前不被走路动画打断
     const cur = this.anims.currentAnim;
-    if (!(this.anims.isPlaying && cur && cur.key === 'zombie-attack')) {
-      this.playAnim('zombie-walk');
+    if (!(this.anims.isPlaying && cur && cur.key === `${this.animPrefix}-attack`)) {
+      this.playAnim(`${this.animPrefix}-walk`);
     }
   }
 
@@ -123,7 +124,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.fsm = ZState.STAGGER;
     this.staggerUntil = time + this.cfg.staggerMs;
     this.setVelocityX(Math.sign(this.x - fromX) * this.cfg.knockback);
-    this.playAnimForce('zombie-hurt');
+    this.playAnimForce(`${this.animPrefix}-hurt`);
     this.setTintFill(0xffffff); // 受击白闪（有无真实动画都保留，打击感反馈）
     this.scene.time.delayedCall(80, () => {
       if (this.active && this.fsm !== ZState.DEAD) this.clearTint();
@@ -135,7 +136,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.body.enable = false;
     this.clearTint();
     this.hpBar.destroy();
-    this.playAnimForce('zombie-dead');
+    this.playAnimForce(`${this.animPrefix}-dead`);
     this.scene.tweens.add({
       targets: this, alpha: 0, y: this.y - 10, duration: 300,
       onComplete: () => this.destroy(),
