@@ -53,6 +53,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     return this.fsm === PState.ROLL || time < this.invulnUntil;
   }
 
+  isOnPlatform() {
+    // 脚下是否为单向平台（而非实心砖）：决定 S+K 是下穿还是普通起跳
+    const bodies = this.scene.physics.overlapRect(this.x - 8, this.body.bottom + 1, 16, 4, false, true);
+    return bodies.some((b) => this.scene.platforms.contains(b.gameObject));
+  }
+
   update(time) {
     if (this.fsm === PState.DEAD) return;
     if (this.fsm === PState.HURT) {
@@ -81,9 +87,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.canDoubleJump = true;
     }
 
-    // 跳跃 / 二段跳
+    // 跳跃 / 二段跳；按住 S 时在单向平台上按 K = 下穿（实心地面上 S+K 仍为普通跳）
     if (Phaser.Input.Keyboard.JustDown(keys.jump)) {
-      if (onFloor || time < this.coyoteUntil) {
+      if (keys.down.isDown && onFloor && this.isOnPlatform()) {
+        this.dropThroughUntil = time + 250;
+      } else if (onFloor || time < this.coyoteUntil) {
         this.setVelocityY(PLAYER.jumpVelocity);
         this.coyoteUntil = 0;
       } else if (this.canDoubleJump) {
@@ -95,11 +103,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // 短按小跳：松开跳跃键时若仍在上升则削减上升速度
     if (Phaser.Input.Keyboard.JustUp(keys.jump) && this.body.velocity.y < 0) {
       this.setVelocityY(this.body.velocity.y * PLAYER.jumpCutFactor);
-    }
-
-    // 下穿单向平台
-    if (onFloor && Phaser.Input.Keyboard.JustDown(keys.down)) {
-      this.dropThroughUntil = time + 250;
     }
 
     // 翻滚
