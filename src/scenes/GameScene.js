@@ -1,4 +1,4 @@
-import { TILE, KEYS } from '../config.js';
+import { TILE, KEYS, CELL } from '../config.js';
 import { LEVEL } from '../level.js';
 import Player from '../entities/Player.js';
 import Zombie from '../entities/Zombie.js';
@@ -20,6 +20,7 @@ export default class GameScene extends Phaser.Scene {
     );
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
+    this.cellsFlying = [];
     this.zombies = [];
     this.zombieSpawns.forEach(({ x, y }) => {
       const z = new Zombie(this, x, y);
@@ -55,16 +56,18 @@ export default class GameScene extends Phaser.Scene {
 
   createUI() {
     // scene.restart() 后 events 保留旧监听，先清掉避免重复计数
-    this.events.off('zombie-died');
+    this.events.off('enemy-died');
     this.events.off('player-died');
     this.uiHp = this.add.graphics().setScrollFactor(0).setDepth(10);
-    this.uiEnemies = this.add.text(20, 44, '', { fontSize: '14px', color: '#ffffff' })
+    this.uiCells = this.add.text(20, 64, '', { fontSize: '14px', color: '#b9a0ff' })
+      .setScrollFactor(0).setDepth(10);
+    this.uiEnemies = this.add.text(20, 84, '', { fontSize: '14px', color: '#ffffff' })
       .setScrollFactor(0).setDepth(10);
     this.add.text(480, 532, 'A/D 移动  S+K 下穿  K 跳/二段跳  J 攻击  L 翻滚  W 进门  R 重开', {
       fontSize: '13px', color: '#8888aa',
     }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(10);
     this.remaining = this.zombies.length;
-    this.events.on('zombie-died', () => { this.remaining -= 1; });
+    this.events.on('enemy-died', () => { this.remaining -= 1; });
     this.events.on('player-died', () => this.showBanner('YOU DIED', '#cc2222'));
   }
 
@@ -74,6 +77,7 @@ export default class GameScene extends Phaser.Scene {
       .fillStyle(0x000000, 0.6).fillRect(18, 18, 204, 18)
       .fillStyle(0xcc2233, 1).fillRect(20, 20, 200 * ratio, 14)
       .lineStyle(2, 0xddddee, 1).strokeRect(18, 18, 204, 18);
+    this.uiCells.setText(`细胞 ${this.player.cells}`);
     this.uiEnemies.setText(`敌人 ${this.remaining}`);
   }
 
@@ -85,12 +89,13 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5).setScrollFactor(0).setDepth(20);
   }
 
-  update(time) {
+  update(time, delta) {
     if (this.ended) {
       if (Phaser.Input.Keyboard.JustDown(this.keyRestart)) this.scene.restart();
       return;
     }
     this.player.update(time);
+    this.updateCells(delta);
     this.zombies.forEach((z) => { if (z.active) z.update(time); });
     this.drawUI();
 
@@ -105,6 +110,32 @@ export default class GameScene extends Phaser.Scene {
         && Phaser.Input.Keyboard.JustDown(this.keyEnter)) {
       this.showBanner('通关！', '#ffd700');
     }
+  }
+
+  spawnCells(x, y, n) {
+    for (let i = 0; i < n; i += 1) {
+      const c = this.add.image(
+        x + Phaser.Math.Between(-10, 10), y + Phaser.Math.Between(-14, 0), 'cell',
+      ).setDepth(4);
+      this.cellsFlying.push(c);
+    }
+  }
+
+  updateCells(delta) {
+    this.cellsFlying = this.cellsFlying.filter((c) => {
+      const dx = this.player.x - c.x;
+      const dy = this.player.y - c.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist < 18) {
+        this.player.addCells(1);
+        c.destroy();
+        return false;
+      }
+      const step = CELL.flySpeed * (delta / 1000);
+      c.x += (dx / dist) * step;
+      c.y += (dy / dist) * step;
+      return true;
+    });
   }
 
   zombieAttack(zombie) {
