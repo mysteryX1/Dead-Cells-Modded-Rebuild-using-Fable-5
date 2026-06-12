@@ -26,10 +26,14 @@ export default class GameScene extends Phaser.Scene {
       this.physics.add.collider(z, this.platforms);
       this.zombies.push(z);
     });
-    this.physics.add.overlap(this.attackHitboxes, this.zombies, (hb, z) => {
-      if (!hb.hitSet.has(z)) {
-        hb.hitSet.add(z);
-        z.takeHit(hb.damage, this.player.x, this.time.now);
+    // Phaser 在 group vs sprite 碰撞时会把 sprite 放到回调第一参（与注册顺序相反），
+    // 不能依赖参数位置，按所属关系动态识别，否则 hb.hitSet 为 undefined 直接抛错卡死
+    this.physics.add.overlap(this.attackHitboxes, this.zombies, (a, b) => {
+      const hb = this.attackHitboxes.contains(a) ? a : b;
+      const zombie = hb === a ? b : a;
+      if (!hb.hitSet.has(zombie)) {
+        hb.hitSet.add(zombie);
+        zombie.takeHit(hb.damage, this.player.x, this.time.now);
       }
     });
 
@@ -49,7 +53,7 @@ export default class GameScene extends Phaser.Scene {
     this.uiHp = this.add.graphics().setScrollFactor(0).setDepth(10);
     this.uiEnemies = this.add.text(20, 44, '', { fontSize: '14px', color: '#ffffff' })
       .setScrollFactor(0).setDepth(10);
-    this.add.text(480, 532, 'A/D 移动  S 下穿  K 跳/二段跳  J 攻击  L 翻滚  W 进门  R 重开', {
+    this.add.text(480, 532, 'A/D 移动  S+K 下穿  K 跳/二段跳  J 攻击  L 翻滚  W 进门  R 重开', {
       fontSize: '13px', color: '#8888aa',
     }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(10);
     this.remaining = this.zombies.length;
@@ -85,7 +89,11 @@ export default class GameScene extends Phaser.Scene {
 
     const nearDoor = Math.abs(this.player.x - this.door.x) < 40
       && Math.abs(this.player.y - this.door.y) < 80;
-    this.doorHint.setVisible(this.remaining === 0 && nearDoor);
+    this.doorHint.setVisible(nearDoor);
+    if (nearDoor) {
+      this.doorHint.setText(this.remaining === 0
+        ? '按 W 进入' : `还有 ${this.remaining} 个敌人，清空后才能进入`);
+    }
     if (this.remaining === 0 && nearDoor
         && Phaser.Input.Keyboard.JustDown(this.keyEnter)) {
       this.showBanner('通关！', '#ffd700');
