@@ -1,4 +1,4 @@
-import { TILE, ZOMBIE, KEYS } from '../config.js';
+import { TILE, KEYS } from '../config.js';
 import { LEVEL } from '../level.js';
 import Player from '../entities/Player.js';
 import Zombie from '../entities/Zombie.js';
@@ -103,16 +103,15 @@ export default class GameScene extends Phaser.Scene {
   zombieAttack(zombie) {
     if (zombie.fsm === 'dead' || !zombie.active) return;
     zombie.playAnim('zombie-attack');
-    const w = ZOMBIE.attackRange;
+    const w = zombie.cfg.attackRange;
     const rect = new Phaser.Geom.Rectangle(
       zombie.dir === 1 ? zombie.x : zombie.x - w, zombie.y - 20, w, 40,
     );
-    // 有真实攻击动画时弱化红色判定提示；占位模式保持原样
     const fxAlpha = this.anims.exists('zombie-attack') ? 0.15 : 0.25;
     const fx = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0xff4040, fxAlpha);
     this.time.delayedCall(100, () => fx.destroy());
     if (Phaser.Geom.Intersects.RectangleToRectangle(rect, this.player.getBounds())) {
-      this.player.takeHit(ZOMBIE.attackDamage, zombie.x, this.time.now);
+      this.player.takeHit(zombie.cfg.attackDamage, zombie.x, this.time.now);
     }
   }
 
