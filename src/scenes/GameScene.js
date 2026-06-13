@@ -173,18 +173,16 @@ export default class GameScene extends Phaser.Scene {
       && Math.abs(this.player.y - this.door.y) < 80;
     this.doorHint.setVisible(nearDoor);
     if (nearDoor) {
-      const hasNext = this.levelIndex + 1 < LEVELS.length;
       this.doorHint.setText(this.remaining === 0
-        ? (hasNext ? '按 W 进入下一关' : '按 W 进入 Boss 房')
+        ? '按 W 进入商店'
         : `还有 ${this.remaining} 个敌人，清空后才能进入`);
     }
     if (!wConsumed && this.remaining === 0 && nearDoor && wPressed) {
-      const next = this.levelIndex + 1;
-      if (next < LEVELS.length) {
-        this.scene.start('Game', { levelIndex: next, state: this.player.getState() });
-      } else {
-        this.scene.start('Boss', { state: this.player.getState() });
-      }
+      // 进门先到商店房；商店根据 nextLevelIndex 决定出门去下一关还是 Boss
+      this.scene.start('Shop', {
+        state: this.player.getState(),
+        nextLevelIndex: this.levelIndex + 1,
+      });
     }
   }
 
