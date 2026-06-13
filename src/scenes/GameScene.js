@@ -35,7 +35,7 @@ export default class GameScene extends Phaser.Scene {
     });
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
-    this.cellsFlying = [];
+    this.flying = [];   // 飞向玩家的收集物，每个带 kind: 'cell' | 'coin'
     this.meleeToken = null;      // 成群协同：同一时刻仅一名近战敌人持令牌进攻
     // 交替分配包抄站位（±1），让近战敌人自然分散到玩家两侧而非全部挤在一边
     let flank = 1;
@@ -122,7 +122,9 @@ export default class GameScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(10);
     this.uiCells = this.add.text(20, 64, '', { fontSize: '14px', color: '#b9a0ff' })
       .setScrollFactor(0).setDepth(10);
-    this.uiEnemies = this.add.text(20, 84, '', { fontSize: '14px', color: '#ffffff' })
+    this.uiCoins = this.add.text(20, 84, '', { fontSize: '14px', color: '#ffd24a' })
+      .setScrollFactor(0).setDepth(10);
+    this.uiEnemies = this.add.text(20, 104, '', { fontSize: '14px', color: '#ffffff' })
       .setScrollFactor(0).setDepth(10);
     this.add.text(480, 532, 'A/D 移动  S+K 下穿  K 跳/二段跳  J 攻击  L 翻滚  W 拾取/进门  R 重开', {
       fontSize: '13px', color: '#8888aa',
@@ -141,6 +143,7 @@ export default class GameScene extends Phaser.Scene {
     this.uiHpText.setText(`${Math.max(0, this.player.hp)} / ${this.player.maxHp}`);
     this.uiWeapon.setText(`武器：${this.player.weapon.name}`);
     this.uiCells.setText(`细胞 ${this.player.cells}`);
+    this.uiCoins.setText(`金币 ${this.player.coins}`);
     this.uiEnemies.setText(`敌人 ${this.remaining}`);
   }
 
@@ -162,7 +165,7 @@ export default class GameScene extends Phaser.Scene {
     const wPressed = Phaser.Input.Keyboard.JustDown(this.keyEnter);
     this.player.update(time);
     const wConsumed = this.updatePickups(wPressed);
-    this.updateCells(delta);
+    this.updateFlying(delta);
     this.zombies.forEach((z) => { if (z.active) z.update(time); });
     this.drawUI();
 
@@ -249,23 +252,32 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // 由 Zombie/Elite 死亡时调用；承载它们的场景必须实现本方法
-  spawnCells(x, y, n) {
-    for (let i = 0; i < n; i += 1) {
-      const c = this.add.image(
-        x + Phaser.Math.Between(-10, 10), y + Phaser.Math.Between(-14, 0), 'cell',
-      ).setDepth(4);
-      this.cellsFlying.push(c);
+  // 由 Zombie/Elite/Archer 死亡时调用：掉落细胞（数量 +0~1 浮动）与金币（按 coinDrop 范围）
+  spawnLoot(x, y, cfg) {
+    const nCells = cfg.cells + Phaser.Math.Between(0, 1);
+    for (let i = 0; i < nCells; i += 1) this.spawnFly(x, y, 'cell');
+    if (cfg.coinDrop) {
+      const nCoins = Phaser.Math.Between(cfg.coinDrop[0], cfg.coinDrop[1]);
+      for (let i = 0; i < nCoins; i += 1) this.spawnFly(x, y, 'coin');
     }
   }
 
-  updateCells(delta) {
-    this.cellsFlying = this.cellsFlying.filter((c) => {
+  spawnFly(x, y, kind) {
+    const c = this.add.image(
+      x + Phaser.Math.Between(-10, 10), y + Phaser.Math.Between(-14, 0), kind,
+    ).setDepth(4);
+    c.kind = kind;
+    this.flying.push(c);
+  }
+
+  updateFlying(delta) {
+    this.flying = this.flying.filter((c) => {
       const dx = this.player.x - c.x;
       const dy = this.player.y - c.y;
       const dist = Math.hypot(dx, dy) || 1;
       if (dist < 18) {
-        this.player.addCells(1);
+        if (c.kind === 'coin') this.player.addCoins(1);
+        else this.player.addCells(1);
         c.destroy();
         return false;
       }

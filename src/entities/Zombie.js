@@ -210,7 +210,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       targets: this, alpha: 0, y: this.y - 10, duration: 300,
       onComplete: () => this.destroy(),
     });
-    this.scene.spawnCells(this.x, this.y, this.cfg.cells);
+    this.scene.spawnLoot(this.x, this.y, this.cfg);
     this.scene.events.emit('enemy-died');
   }
 }
