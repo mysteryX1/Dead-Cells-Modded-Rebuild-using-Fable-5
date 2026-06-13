@@ -3,6 +3,7 @@ import { BOSS_LEVEL } from '../level.js';
 import { buildLevel } from '../levelBuilder.js';
 import Player from '../entities/Player.js';
 import Boss from '../entities/Boss.js';
+import { spawnSlash, attackLunge } from '../fx.js';
 
 export default class BossScene extends Phaser.Scene {
   constructor() { super('Boss'); }
@@ -125,8 +126,13 @@ export default class BossScene extends Phaser.Scene {
     const rect = new Phaser.Geom.Rectangle(
       boss.dir === 1 ? boss.x : boss.x - w, boss.y - h / 2, w, h,
     );
-    const fx = this.add.rectangle(rect.centerX, rect.centerY, w, h, 0xff4040, 0.25);
+    const fx = this.add.rectangle(rect.centerX, rect.centerY, w, h, 0xff4040, 0.15);
     this.time.delayedCall(120, () => fx.destroy());
+    // 大号红色挥砍弧光 + Boss 出招前倾，区别于细杂兵
+    spawnSlash(this, boss.x + boss.dir * (w * 0.35), boss.y, boss.dir, {
+      color: 0xff5050, sizeMul: 2.2, dur: 200,
+    });
+    attackLunge(boss, boss.dir, 8, 120);
     if (Phaser.Geom.Intersects.RectangleToRectangle(rect, this.player.getBounds())) {
       this.player.takeHit(damage, boss.x, this.time.now);
     }

@@ -48,11 +48,11 @@ export const ZOMBIE = {
   cells: 1,                 // 死亡掉落细胞数
 };
 
-// 武器：伤害为两段连击 [一段, 二段]
+// 武器：伤害为两段连击 [一段, 二段]；slashColor/slashSize 控制挥砍弧光配色与大小
 export const WEAPONS = {
-  old:   { name: '旧剑', damage: [20, 28], attackDurationMs: 250, attackRangeX: 40 },
-  fast:  { name: '速剑', damage: [14, 18], attackDurationMs: 170, attackRangeX: 36 },
-  heavy: { name: '重剑', damage: [34, 46], attackDurationMs: 380, attackRangeX: 56 },
+  old:   { name: '旧剑', damage: [20, 28], attackDurationMs: 250, attackRangeX: 40, slashColor: 0xdfe8ff, slashSize: 1.0 },
+  fast:  { name: '速剑', damage: [14, 18], attackDurationMs: 170, attackRangeX: 36, slashColor: 0x7af0ff, slashSize: 0.85 },
+  heavy: { name: '重剑', damage: [30, 40], attackDurationMs: 380, attackRangeX: 56, slashColor: 0xffb060, slashSize: 1.45 },
 };
 
 // 精英怪（石雕守卫）：复用 Zombie 的 FSM，仅数值与外观不同

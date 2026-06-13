@@ -1,4 +1,5 @@
 import { KEYS, PLAYER, WEAPONS, CELL, TILE } from '../config.js';
+import { spawnSlash, attackLunge } from '../fx.js';
 
 export const PState = {
   MOVE: 'move', ROLL: 'roll', ATTACK: 'attack', HURT: 'hurt', DEAD: 'dead',
@@ -90,8 +91,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   spawnAttackHitbox(damage) {
     const w = this.weapon.attackRangeX;
     const x = this.x + this.facing * (w / 2 + 10);
-    // 单帧立绘模式没有攻击动画，判定框就是攻击反馈，保持可见
-    const hb = this.scene.add.rectangle(x, this.y, w, PLAYER.attackRangeY, 0xffffff, 0.25);
+    // 判定框不可见，攻击反馈交给挥砍弧光（spawnSlash）；这里只留物理碰撞体
+    const hb = this.scene.add.rectangle(x, this.y, w, PLAYER.attackRangeY, 0xffffff, 0);
     this.scene.attackHitboxes.add(hb);
     hb.body.setAllowGravity(false);
     hb.damage = damage;
@@ -194,11 +195,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.attackUntil = time + this.weapon.attackDurationMs;
     if (this.body.blocked.down) this.setVelocityX(0); // 地面攻击站定
     this.spawnAttackHitbox(this.computeDamage(step));
-    const animKey = step === 0 ? 'player-attack1' : 'player-attack2';
-    this.playAnimForce(animKey);
-    if (!this.scene.anims.exists(animKey)) {
-      this.setTint(step === 0 ? 0xffe080 : 0xffa040); // 占位模式的攻击色块反馈
-    }
+    // 程序化攻击动画：身前扫出武器配色的挥砍弧光 + 角色出招前倾
+    spawnSlash(this.scene, this.x + this.facing * 8, this.y, this.facing, {
+      color: this.weapon.slashColor,
+      sizeMul: this.weapon.slashSize,
+      dur: this.weapon.attackDurationMs,
+      step,
+    });
+    attackLunge(this, this.facing, 10, Math.min(110, this.weapon.attackDurationMs * 0.5));
   }
 
   updateAttack(time) {

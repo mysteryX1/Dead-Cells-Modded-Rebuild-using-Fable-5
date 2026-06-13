@@ -6,6 +6,7 @@ import Zombie from '../entities/Zombie.js';
 import Elite from '../entities/Elite.js';
 import Archer from '../entities/Archer.js';
 import Pickup from '../entities/Pickup.js';
+import { spawnSlash, attackLunge } from '../fx.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -294,9 +295,11 @@ export default class GameScene extends Phaser.Scene {
     const rect = new Phaser.Geom.Rectangle(
       zombie.dir === 1 ? zombie.x : zombie.x - w, zombie.y - 20, w, 40,
     );
-    const fxAlpha = this.anims.exists(`${zombie.animPrefix}-attack`) ? 0.15 : 0.25;
-    const fx = this.add.rectangle(rect.centerX, rect.centerY, rect.width, rect.height, 0xff4040, fxAlpha);
-    this.time.delayedCall(100, () => fx.destroy());
+    // 程序化怪物攻击动画：红色挥砍弧光（按射程缩放）+ 出招前扑
+    spawnSlash(this, zombie.x + zombie.dir * 14, zombie.y, zombie.dir, {
+      color: 0xff5555, sizeMul: w / 36, dur: 180,
+    });
+    attackLunge(zombie, zombie.dir, 14, 90);
     if (Phaser.Geom.Intersects.RectangleToRectangle(rect, this.player.getBounds())) {
       this.player.takeHit(zombie.cfg.attackDamage, zombie.x, this.time.now);
     }

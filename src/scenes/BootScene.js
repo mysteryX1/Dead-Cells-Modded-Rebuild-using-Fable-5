@@ -63,6 +63,17 @@ export default class BootScene extends Phaser.Scene {
     g.generateTexture('spike', 32, 16);
     g.destroy();
 
+    // 挥砍弧光：白色月牙（向 +x 凸出，枢轴在纹理中心）。攻击时由 fx.spawnSlash 染色/旋转/缩放扫出。
+    const sg = this.add.graphics();
+    sg.fillStyle(0xffffff, 1);
+    sg.beginPath();
+    sg.arc(32, 32, 28, Phaser.Math.DegToRad(-62), Phaser.Math.DegToRad(62), false);
+    sg.arc(32, 32, 15, Phaser.Math.DegToRad(62), Phaser.Math.DegToRad(-62), true);
+    sg.closePath();
+    sg.fillPath();
+    sg.generateTexture('slash', 64, 64);
+    sg.destroy();
+
     // 注册动画：素材缺失（failed）或 frames 为 0（未切出）的跳过
     ANIMS.forEach((a) => {
       if (this.failed.has(a.sheet) || a.frames <= 0) return;
