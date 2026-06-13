@@ -74,7 +74,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     };
   }
 
-  applyState(s) { Object.assign(this, s); }
+  applyState(s) {
+    // 白名单显式赋值，防止任意键污染实例
+    this.hp = s.hp;
+    this.maxHp = s.maxHp;
+    this.weaponKey = s.weaponKey;
+    this.atkMult = s.atkMult;
+    this.flatBonus = s.flatBonus;
+    this.cells = s.cells;
+  }
 
   // 由 GameScene 移入：攻击范围与持续时间读当前武器
   spawnAttackHitbox(damage) {
