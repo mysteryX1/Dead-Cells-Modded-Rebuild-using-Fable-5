@@ -48,11 +48,13 @@ export const ZOMBIE = {
   cells: 1,                 // 死亡掉落细胞数
 };
 
-// 武器：伤害为两段连击 [一段, 二段]；slashColor/slashSize 控制挥砍弧光配色与大小
+// 武器：伤害为两段连击 [一段, 二段]；slashColor/slashSize 控制挥砍弧光配色与大小；price 为商店售价
 export const WEAPONS = {
-  old:   { name: '旧剑', damage: [20, 28], attackDurationMs: 250, attackRangeX: 40, slashColor: 0xdfe8ff, slashSize: 1.0 },
-  fast:  { name: '速剑', damage: [14, 18], attackDurationMs: 170, attackRangeX: 36, slashColor: 0x7af0ff, slashSize: 0.85 },
-  heavy: { name: '重剑', damage: [30, 40], attackDurationMs: 380, attackRangeX: 56, slashColor: 0xffb060, slashSize: 1.45 },
+  old:   { name: '旧剑', damage: [20, 28], attackDurationMs: 250, attackRangeX: 40, slashColor: 0xdfe8ff, slashSize: 1.0,  price: 30 },
+  fast:  { name: '速剑', damage: [14, 18], attackDurationMs: 170, attackRangeX: 36, slashColor: 0x7af0ff, slashSize: 0.85, price: 35 },
+  heavy: { name: '重剑', damage: [30, 40], attackDurationMs: 380, attackRangeX: 56, slashColor: 0xffb060, slashSize: 1.45, price: 50 },
+  spear: { name: '长矛', damage: [22, 30], attackDurationMs: 320, attackRangeX: 72, slashColor: 0xd8e0e8, slashSize: 1.2,  price: 65 },
+  twin:  { name: '双刀', damage: [10, 14], attackDurationMs: 140, attackRangeX: 34, slashColor: 0xc080ff, slashSize: 0.75, price: 70 },
 };
 
 // 精英怪（石雕守卫）：复用 Zombie 的 FSM，仅数值与外观不同
