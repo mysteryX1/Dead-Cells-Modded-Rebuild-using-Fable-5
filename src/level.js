@@ -53,3 +53,12 @@ export const BOSS_LEVEL = [
   '#'.repeat(30),
   '#'.repeat(30),
 ];
+
+// 商店房：一屏封闭小房间。$ = 武器台（3 个），D = 出口门，P = 玩家出生
+export const SHOP_LEVEL = [
+  '#'.repeat(30),
+  ...Array(13).fill('#' + S(28) + '#'),
+  '#' + S(3) + 'P' + S(3) + '$' + S(6) + '$' + S(6) + '$' + S(3) + 'D' + S(2) + '#',
+  '#'.repeat(30),
+  '#'.repeat(30),
+];
