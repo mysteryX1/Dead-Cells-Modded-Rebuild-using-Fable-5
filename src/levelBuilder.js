@@ -2,7 +2,7 @@ import { TILE } from './config.js';
 
 // 解析字符地图并创建物理组，GameScene/BossScene 共用。
 // 标记：# 实心砖、= 单向平台、^ 尖刺、P 玩家、Z 僵尸、E 精英、A 弓手、B Boss、D 门、
-//       f/h 速剑/重剑拾取、r/g 红/绿卷轴
+//       f/h 速剑/重剑拾取、r/g 红/绿卷轴、$ 商店武器台
 export function buildLevel(scene, level) {
   const out = {
     solids: scene.physics.add.staticGroup(),
@@ -12,6 +12,7 @@ export function buildLevel(scene, level) {
     eliteSpawns: [],
     archerSpawns: [],
     pickupSpawns: [],
+    shopSlotSpawns: [],
     playerSpawn: null,
     bossSpawn: null,
     door: null,
@@ -48,6 +49,8 @@ export function buildLevel(scene, level) {
         out.pickupSpawns.push({ x, y: y + 8, kind: 'weapon', id: ch === 'f' ? 'fast' : 'heavy' });
       } else if (ch === 'r' || ch === 'g') {
         out.pickupSpawns.push({ x, y: y + 8, kind: 'scroll', id: ch === 'r' ? 'red' : 'green' });
+      } else if (ch === '$') {
+        out.shopSlotSpawns.push({ x, y });
       }
     });
   });
