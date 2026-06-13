@@ -46,6 +46,7 @@ export const ZOMBIE = {
   bodyW: 22, bodyH: 38,
   barW: 24, barH: 4,        // 头顶血条尺寸
   cells: 1,                 // 死亡掉落细胞数
+  coinDrop: [3, 6],         // 死亡掉落金币范围（含两端随机）
 };
 
 // 武器：伤害为两段连击 [一段, 二段]；slashColor/slashSize 控制挥砍弧光配色与大小；price 为商店售价
@@ -86,6 +87,7 @@ export const ELITE = {
   bodyW: 30, bodyH: 50,
   barW: 32, barH: 5,
   cells: 5,
+  coinDrop: [12, 20],
 };
 
 // 远程怪（弓手）：圆形索敌，进 shootRange 蓄力放箭，太近则后退拉开（走到平台边缘自动停步）
@@ -105,6 +107,7 @@ export const RANGED = {
   bodyW: 22, bodyH: 40,
   barW: 26, barH: 4,
   cells: 2,
+  coinDrop: [5, 9],
 };
 
 // Boss（时光守护者）
