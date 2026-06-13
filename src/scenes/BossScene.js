@@ -8,8 +8,8 @@ export default class BossScene extends Phaser.Scene {
   constructor() { super('Boss'); }
 
   init(data) {
-    // 直接调试进入（无携带状态）时用 Player 构造默认值兜底
-    this.playerState = data && data.weaponKey ? data : null;
+    // 契约 { state }；直接调试进入（无携带状态）时用 Player 构造默认值兜底
+    this.playerState = data && data.state ? data.state : null;
   }
 
   create() {
@@ -68,11 +68,15 @@ export default class BossScene extends Phaser.Scene {
 
   createUI() {
     this.uiHp = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.uiHpText = this.add.text(120, 27, '', { fontSize: '12px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(11);
     this.uiWeapon = this.add.text(20, 44, '', { fontSize: '14px', color: '#ffffff' })
       .setScrollFactor(0).setDepth(10);
     this.uiCells = this.add.text(20, 64, '', { fontSize: '14px', color: '#b9a0ff' })
       .setScrollFactor(0).setDepth(10);
     this.bossBar = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.bossHpText = this.add.text(480, 36, '', { fontSize: '12px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(11);
     this.add.text(480, 56, '时光守护者', { fontSize: '14px', color: '#ddccee' })
       .setOrigin(0.5).setScrollFactor(0).setDepth(10);
     this.add.text(480, 532, 'A/D 移动  K 跳  J 攻击  L 翻滚  R 重开', {
@@ -86,6 +90,7 @@ export default class BossScene extends Phaser.Scene {
       .fillStyle(0x000000, 0.6).fillRect(18, 18, 204, 18)
       .fillStyle(0xcc2233, 1).fillRect(20, 20, 200 * ratio, 14)
       .lineStyle(2, 0xddddee, 1).strokeRect(18, 18, 204, 18);
+    this.uiHpText.setText(`${Math.max(0, this.player.hp)} / ${this.player.maxHp}`);
     this.uiWeapon.setText(`武器：${this.player.weapon.name}`);
     this.uiCells.setText(`细胞 ${this.player.cells}`);
     const br = this.boss.active ? Math.max(0, this.boss.hp / this.boss.maxHp) : 0;
@@ -93,6 +98,7 @@ export default class BossScene extends Phaser.Scene {
       .fillStyle(0x000000, 0.6).fillRect(278, 28, 404, 16)
       .fillStyle(0xaa33cc, 1).fillRect(280, 30, 400 * br, 12)
       .lineStyle(2, 0xddddee, 1).strokeRect(278, 28, 404, 16);
+    this.bossHpText.setText(this.boss.active ? `${Math.max(0, this.boss.hp)} / ${this.boss.maxHp}` : '');
   }
 
   showBanner(text, color) {

@@ -1,4 +1,4 @@
-import { BOSS } from '../config.js';
+import { BOSS, TILE } from '../config.js';
 
 const BState = { CHASE: 'chase', WINDUP: 'windup', DASH: 'dash', DEAD: 'dead' };
 // 前摇提示色：横扫红 / 冲刺橙 / 弹幕紫
@@ -12,6 +12,8 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(36, 64);
     // 底对齐：立绘比碰撞体大，保证脚部贴地
     this.body.setOffset((this.width - 36) / 2, this.height - 64);
+    // 出生对齐：脚底贴所在 tile 底部，避免立绘高于碰撞体时嵌进下方地砖
+    this.body.reset(x, y + TILE / 2 - this.height / 2);
     this.maxHp = BOSS.hp;
     this.hp = this.maxHp;
     this.fsm = BState.CHASE;
@@ -19,6 +21,8 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
     this.nextMoveAt = 0;
     this.windupUntil = 0;
     this.pendingMove = null;
+    this.telegraphFx = [];      // 前摇预警图形（招式各异），落招/死亡时清除
+    this.telegraphTween = null;
   }
 
   get phase2() { return this.hp < this.maxHp / 2; }
@@ -74,9 +78,49 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
     this.windupUntil = time + BOSS[move].windupMs;
     this.setVelocityX(0);
     this.setTint(TELEGRAPH[move]);
+    this.startTelegraph(move);
+  }
+
+  // 招式预警：横扫=命中区渐亮 / 冲刺=整条跑道闪烁 / 弹幕=收缩紫环，给玩家可读的躲避窗口
+  startTelegraph(move) {
+    this.clearTelegraph();
+    const dur = BOSS[move].windupMs;
+    if (move === 'slash') {
+      const { w, h } = BOSS.slash;
+      const cx = this.dir === 1 ? this.x + w / 2 : this.x - w / 2;
+      const fx = this.scene.add.rectangle(cx, this.y, w, h, TELEGRAPH.slash, 0.15).setDepth(4);
+      this.telegraphFx.push(fx);
+      this.telegraphTween = this.scene.tweens.add({
+        targets: fx, alpha: 0.5, duration: dur, ease: 'Quad.in',
+      });
+    } else if (move === 'dash') {
+      const wall = this.dir === 1 ? this.scene.worldW : 0;
+      const len = Math.abs(wall - this.x);
+      const cx = this.x + (this.dir * len) / 2;
+      const fx = this.scene.add.rectangle(cx, this.y, len, this.body.height, TELEGRAPH.dash, 0.12)
+        .setDepth(4);
+      this.telegraphFx.push(fx);
+      this.telegraphTween = this.scene.tweens.add({
+        targets: fx, alpha: { from: 0.12, to: 0.45 }, duration: dur / 2, yoyo: true, repeat: -1,
+      });
+    } else { // shoot
+      const ring = this.scene.add.circle(this.x, this.y - 20, 90).setDepth(4)
+        .setStrokeStyle(3, TELEGRAPH.shoot, 0.9);
+      this.telegraphFx.push(ring);
+      this.telegraphTween = this.scene.tweens.add({
+        targets: ring, scale: { from: 1, to: 0.2 }, duration: dur, ease: 'Quad.in',
+      });
+    }
+  }
+
+  clearTelegraph() {
+    if (this.telegraphTween) { this.telegraphTween.stop(); this.telegraphTween = null; }
+    this.telegraphFx.forEach((fx) => fx.destroy());
+    this.telegraphFx = [];
   }
 
   execute(move, time) {
+    this.clearTelegraph();
     if (move === 'dash') {
       this.fsm = BState.DASH;
       // 起步已贴墙则反向冲，保证横穿全场而非原地空放
@@ -113,6 +157,7 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
     this.fsm = BState.DEAD;
     this.body.enable = false;
     this.clearTint();
+    this.clearTelegraph();
     this.scene.tweens.add({
       targets: this, alpha: 0, duration: 600,
       onComplete: () => this.destroy(),

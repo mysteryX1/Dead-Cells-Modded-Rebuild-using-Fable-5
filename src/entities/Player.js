@@ -1,4 +1,4 @@
-import { KEYS, PLAYER, WEAPONS, CELL } from '../config.js';
+import { KEYS, PLAYER, WEAPONS, CELL, TILE } from '../config.js';
 
 export const PState = {
   MOVE: 'move', ROLL: 'roll', ATTACK: 'attack', HURT: 'hurt', DEAD: 'dead',
@@ -13,6 +13,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // 底对齐：立绘比碰撞体大时保证脚部贴地；占位纹理下等价于默认居中
     this.body.setOffset((this.width - 20) / 2, this.height - 38);
     this.setCollideWorldBounds(true);
+    // 出生对齐：脚底贴所在 tile 底部（立绘以中心锚点放置且高于碰撞体，否则碰撞体会嵌进下方地砖导致只能跳出来）
+    this.body.reset(x, y + TILE / 2 - this.height / 2);
 
     this.maxHp = PLAYER.maxHp;
     this.hp = this.maxHp;
@@ -225,6 +227,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       onComplete: () => this.setAlpha(1),
     });
     if (this.hp <= 0) this.die();
+  }
+
+  // 无伤害击退（被精英格挡时用）：短暂硬直 + 击退，不扣血、不给无敌
+  recoil(fromX, time) {
+    if (this.fsm === PState.DEAD) return;
+    this.fsm = PState.HURT;
+    this.hurtUntil = time + 160;
+    this.clearTint(); // 清掉占位模式下可能残留的攻击色块
+    this.setVelocity(Math.sign(this.x - fromX) * PLAYER.knockback, -120);
   }
 
   die() {

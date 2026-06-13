@@ -1,41 +1,64 @@
-import { KEYS, CELL, WEAPONS, SCROLL } from '../config.js';
-import { LEVEL } from '../level.js';
+import { KEYS, CELL, WEAPONS, SCROLL, HAZARD } from '../config.js';
+import { LEVELS } from '../level.js';
 import { buildLevel } from '../levelBuilder.js';
 import Player from '../entities/Player.js';
 import Zombie from '../entities/Zombie.js';
 import Elite from '../entities/Elite.js';
+import Archer from '../entities/Archer.js';
 import Pickup from '../entities/Pickup.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
+  init(data) {
+    // 关卡链 + 跨关携带的成长状态（无 data = 从第一关全新开局）
+    this.levelIndex = data && Number.isInteger(data.levelIndex) ? data.levelIndex : 0;
+    this.carryState = data && data.state ? data.state : null;
+  }
+
   create() {
-    const built = buildLevel(this, LEVEL);
+    const built = buildLevel(this, LEVELS[this.levelIndex]);
     Object.assign(this, built); // solids/platforms/各spawn/door/worldW/worldH 挂到场景
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
     this.attackHitboxes = this.physics.add.group({ allowGravity: false });
     this.player = new Player(this, this.playerSpawn.x, this.playerSpawn.y);
+    if (this.carryState) this.player.applyState(this.carryState); // 续关：带入上一关成长
     this.physics.add.collider(this.player, this.solids);
     this.physics.add.collider(
       this.player, this.platforms, null,
       (player) => this.time.now >= player.dropThroughUntil,
     );
+    this.physics.add.overlap(this.player, this.hazards, (player, spike) => {
+      player.takeHit(HAZARD.spikeDamage, spike.x, this.time.now); // takeHit 自带无敌帧
+    });
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
     this.cellsFlying = [];
+    this.meleeToken = null;      // 成群协同：同一时刻仅一名近战敌人持令牌进攻
+    // 交替分配包抄站位（±1），让近战敌人自然分散到玩家两侧而非全部挤在一边
+    let flank = 1;
+    const assignFlank = (e) => { e.flankSide = flank; flank = -flank; };
     this.zombies = [];
     this.zombieSpawns.forEach(({ x, y }) => {
       const z = new Zombie(this, x, y);
       this.physics.add.collider(z, this.solids);
       this.physics.add.collider(z, this.platforms);
+      assignFlank(z);
       this.zombies.push(z);
     });
     this.eliteSpawns.forEach(({ x, y }) => {
       const e = new Elite(this, x, y);
       this.physics.add.collider(e, this.solids);
       this.physics.add.collider(e, this.platforms);
+      assignFlank(e);
       this.zombies.push(e); // 与小怪同组：攻击判定、敌人计数、AI 更新全部复用
+    });
+    this.archerSpawns.forEach(({ x, y }) => {
+      const a = new Archer(this, x, y);
+      this.physics.add.collider(a, this.solids);
+      this.physics.add.collider(a, this.platforms);
+      this.zombies.push(a); // 同组复用，AI 在 Archer.update 内自定义
     });
     // Phaser 在 group vs sprite 碰撞时会把 sprite 放到回调第一参（与注册顺序相反），
     // 不能依赖参数位置，按所属关系动态识别，否则 hb.hitSet 为 undefined 直接抛错卡死
@@ -46,6 +69,33 @@ export default class GameScene extends Phaser.Scene {
         hb.hitSet.add(zombie);
         zombie.takeHit(hb.damage, this.player.x, this.time.now);
       }
+    });
+    // 跳扑接触伤害：仅在敌人处于 leap 空中阶段结算，每次跳扑只算一次
+    this.physics.add.overlap(this.player, this.zombies, (a, b) => {
+      const enemy = a === this.player ? b : a;
+      if (enemy.fsm === 'leap' && !enemy.lungeHitDone
+          && !this.player.isInvulnerable(this.time.now)) {
+        enemy.lungeHitDone = true;
+        this.player.takeHit(enemy.cfg.lungeDamage, enemy.x, this.time.now);
+      }
+    });
+
+    // 敌人光弹：碰墙/出界消失；玩家翻滚或受击无敌时可穿过
+    this.projectiles = this.physics.add.group({ allowGravity: false });
+    this.physics.add.collider(this.projectiles, this.solids, (a, b) => {
+      (this.projectiles.contains(a) ? a : b).destroy();
+    });
+    this.physics.add.overlap(this.player, this.projectiles, (a, b) => {
+      const proj = this.projectiles.contains(a) ? a : b;
+      if (!this.player.isInvulnerable(this.time.now)) {
+        proj.destroy();
+        this.player.takeHit(proj.damage, proj.x, this.time.now);
+      }
+    });
+    this.physics.world.off('worldbounds'); // restart 后清掉旧监听，避免重复触发
+    this.physics.world.on('worldbounds', (body) => {
+      const go = body.gameObject;
+      if (go && this.projectiles.contains(go)) go.destroy();
     });
 
     this.keyEnter = this.input.keyboard.addKey(KEYS.enter);
@@ -65,6 +115,8 @@ export default class GameScene extends Phaser.Scene {
     this.events.off('enemy-died');
     this.events.off('player-died');
     this.uiHp = this.add.graphics().setScrollFactor(0).setDepth(10);
+    this.uiHpText = this.add.text(120, 27, '', { fontSize: '12px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(11);
     this.uiWeapon = this.add.text(20, 44, '', { fontSize: '14px', color: '#ffffff' })
       .setScrollFactor(0).setDepth(10);
     this.uiCells = this.add.text(20, 64, '', { fontSize: '14px', color: '#b9a0ff' })
@@ -85,6 +137,7 @@ export default class GameScene extends Phaser.Scene {
       .fillStyle(0x000000, 0.6).fillRect(18, 18, 204, 18)
       .fillStyle(0xcc2233, 1).fillRect(20, 20, 200 * ratio, 14)
       .lineStyle(2, 0xddddee, 1).strokeRect(18, 18, 204, 18);
+    this.uiHpText.setText(`${Math.max(0, this.player.hp)} / ${this.player.maxHp}`);
     this.uiWeapon.setText(`武器：${this.player.weapon.name}`);
     this.uiCells.setText(`细胞 ${this.player.cells}`);
     this.uiEnemies.setText(`敌人 ${this.remaining}`);
@@ -100,7 +153,8 @@ export default class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.ended) {
-      if (Phaser.Input.Keyboard.JustDown(this.keyRestart)) this.scene.restart();
+      // roguelite：死亡回第一关重开整局（新角色、成长归零）
+      if (Phaser.Input.Keyboard.JustDown(this.keyRestart)) this.scene.start('Game');
       return;
     }
     // 每帧统一消费一次 W 键，避免标志跨帧残留导致被动触发
@@ -115,11 +169,18 @@ export default class GameScene extends Phaser.Scene {
       && Math.abs(this.player.y - this.door.y) < 80;
     this.doorHint.setVisible(nearDoor);
     if (nearDoor) {
+      const hasNext = this.levelIndex + 1 < LEVELS.length;
       this.doorHint.setText(this.remaining === 0
-        ? '按 W 进入' : `还有 ${this.remaining} 个敌人，清空后才能进入`);
+        ? (hasNext ? '按 W 进入下一关' : '按 W 进入 Boss 房')
+        : `还有 ${this.remaining} 个敌人，清空后才能进入`);
     }
     if (!wConsumed && this.remaining === 0 && nearDoor && wPressed) {
-      this.scene.start('Boss', this.player.getState());
+      const next = this.levelIndex + 1;
+      if (next < LEVELS.length) {
+        this.scene.start('Game', { levelIndex: next, state: this.player.getState() });
+      } else {
+        this.scene.start('Boss', { state: this.player.getState() });
+      }
     }
   }
 
@@ -212,6 +273,18 @@ export default class GameScene extends Phaser.Scene {
       c.y += (dy / dist) * step;
       return true;
     });
+  }
+
+  // 由 Archer 蓄力结束时调用：朝玩家当前位置发一枚光弹
+  enemyShoot(enemy) {
+    if (enemy.fsm === 'dead' || !enemy.active) return;
+    const a = Phaser.Math.Angle.Between(enemy.x, enemy.y - 6, this.player.x, this.player.y);
+    const p = this.projectiles.create(enemy.x, enemy.y - 6, 'projectile');
+    p.body.setAllowGravity(false);
+    p.setCollideWorldBounds(true);
+    p.body.onWorldBounds = true;
+    p.damage = enemy.cfg.projectileDamage;
+    p.setVelocity(Math.cos(a) * enemy.cfg.projectileSpeed, Math.sin(a) * enemy.cfg.projectileSpeed);
   }
 
   zombieAttack(zombie) {

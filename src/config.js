@@ -34,6 +34,15 @@ export const ZOMBIE = {
   attackCooldownMs: 900,
   knockback: 140,
   staggerMs: 200,
+  // 跳扑：玩家在近战射程外、跳扑射程内时蓄力起跳，空中接触造成伤害
+  canLunge: true,
+  lungeRange: 170,
+  lungeWindupMs: 280,
+  lungeCooldownMs: 2600,
+  lungeSpeedX: 250,
+  lungeVelocityY: -360,
+  lungeRecoverMs: 320,
+  lungeDamage: 18,
   bodyW: 22, bodyH: 38,
   barW: 24, barH: 4,        // 头顶血条尺寸
   cells: 1,                 // 死亡掉落细胞数
@@ -59,9 +68,41 @@ export const ELITE = {
   attackCooldownMs: 900,
   knockback: 100,
   staggerMs: 150,
+  // 跳扑：比僵尸更慢更重，但接触伤害更高
+  canLunge: true,
+  lungeRange: 170,
+  lungeWindupMs: 360,
+  lungeCooldownMs: 3000,
+  lungeSpeedX: 220,
+  lungeVelocityY: -320,
+  lungeRecoverMs: 320,
+  lungeDamage: 30,
+  // 格挡：正面来袭有概率盾挡，抵消伤害并击退玩家，但格挡后自身硬直 guardBreakMs 露破绽
+  guardChance: 0.4,
+  guardCooldownMs: 1500,
+  guardBreakMs: 600,
   bodyW: 30, bodyH: 50,
   barW: 32, barH: 5,
   cells: 5,
+};
+
+// 远程怪（弓手）：圆形索敌，进 shootRange 蓄力放箭，太近则后退拉开（走到平台边缘自动停步）
+export const RANGED = {
+  hp: 30,
+  chaseSpeed: 70,
+  retreatSpeed: 120,
+  aggroRange: 340,          // 圆形索敌半径（够得到栖位正下方的地面）
+  shootRange: 300,          // 进入此半径即蓄力射击
+  keepDistance: 120,        // 近于此距离则后退拉开
+  windupMs: 350,
+  shootCooldownMs: 1500,
+  projectileSpeed: 220,
+  projectileDamage: 10,
+  staggerMs: 180,           // Zombie.takeHit 复用
+  knockback: 120,           // Zombie.takeHit 复用
+  bodyW: 22, bodyH: 40,
+  barW: 26, barH: 4,
+  cells: 2,
 };
 
 // Boss（时光守护者）
@@ -77,3 +118,6 @@ export const BOSS = {
 
 export const SCROLL = { red: 0.15, green: 25 };   // 红=攻击倍率增量 绿=maxHp增量
 export const CELL = { perTen: 5, flySpeed: 260 };  // 每10个细胞攻击+5；飞向玩家速度
+
+// 环境危险：尖刺踩中扣血（复用玩家受击无敌帧，不会每帧连扣）
+export const HAZARD = { spikeDamage: 20 };

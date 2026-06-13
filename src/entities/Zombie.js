@@ -1,7 +1,9 @@
-import { ZOMBIE } from '../config.js';
+import { ZOMBIE, TILE } from '../config.js';
 
 const ZState = {
-  PATROL: 'patrol', WINDUP: 'windup', STAGGER: 'stagger', DEAD: 'dead',
+  PATROL: 'patrol', WINDUP: 'windup',
+  LEAPWIND: 'leapwind', LEAP: 'leap', RECOVER: 'recover',
+  STAGGER: 'stagger', DEAD: 'dead',
 };
 
 export default class Zombie extends Phaser.Physics.Arcade.Sprite {
@@ -14,6 +16,8 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(cfg.bodyW, cfg.bodyH);
     // 底对齐：贴图比碰撞体大，保证脚部贴地
     this.body.setOffset((this.width - cfg.bodyW) / 2, this.height - cfg.bodyH);
+    // 出生对齐：脚底贴所在 tile 底部，避免立绘高于碰撞体时嵌进下方地砖（只能跳出来）
+    this.body.reset(x, y + TILE / 2 - this.height / 2);
     this.maxHp = cfg.hp;
     this.hp = this.maxHp;
     this.fsm = ZState.PATROL;
@@ -21,6 +25,11 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.staggerUntil = 0;
     this.windupUntil = 0;
     this.nextAttackAt = 0;
+    this.nextLungeAt = 0;
+    this.recoverUntil = 0;
+    this.leapUntil = 0;        // 跳扑空中看门狗：超时强制落地，避免极端地形下卡在 LEAP 不释放令牌
+    this.lungeHitDone = false; // 单次跳扑只结算一次接触伤害
+    this.flankSide = 1;        // 包抄站位偏好（±1），由 GameScene 交替分配
     // 头顶血条：首次受击后才显示
     this.hpBar = scene.add.graphics().setDepth(5);
     this.hpBarVisible = false;
@@ -40,11 +49,24 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.anims.play(key, false);
   }
 
+  // 成群协同令牌：同一时刻仅一名近战敌人可进入前摇/跳扑，其余继续包抄等待
+  acquireMeleeToken() {
+    const t = this.scene.meleeToken;
+    if (t && t !== this && t.active) return false;
+    this.scene.meleeToken = this;
+    return true;
+  }
+
   update(time) {
     const player = this.scene.player;
     if (this.fsm === ZState.DEAD) return;
     // 血条在受击硬直/前摇期间也刷新位置
     this.drawHpBar();
+    // 成群协同：仅正在进攻（前摇/起跳/扑出）的敌人持令牌，离开这些状态立即让出
+    if (this.scene.meleeToken === this
+        && this.fsm !== ZState.WINDUP && this.fsm !== ZState.LEAPWIND && this.fsm !== ZState.LEAP) {
+      this.scene.meleeToken = null;
+    }
     if (this.fsm === ZState.STAGGER) {
       if (time >= this.staggerUntil) this.fsm = ZState.PATROL;
       return;
@@ -58,6 +80,31 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       }
       return;
     }
+    if (this.fsm === ZState.LEAPWIND) {
+      this.setVelocityX(0);
+      if (time >= this.windupUntil) {
+        this.fsm = ZState.LEAP;
+        this.lungeHitDone = false;
+        this.leapUntil = time + 1500; // 正常滞空 <1s，1.5s 仍未落地视为卡住
+        this.clearTint();
+        this.setVelocity(this.dir * this.cfg.lungeSpeedX, this.cfg.lungeVelocityY);
+      }
+      return;
+    }
+    if (this.fsm === ZState.LEAP) {
+      // 起跳后再次落地（已在下落且踩到地面）即转入恢复；看门狗超时兜底防卡死
+      if ((this.body.blocked.down && this.body.velocity.y >= 0) || time >= this.leapUntil) {
+        this.fsm = ZState.RECOVER;
+        this.recoverUntil = time + this.cfg.lungeRecoverMs;
+        this.setVelocityX(0);
+      }
+      return;
+    }
+    if (this.fsm === ZState.RECOVER) {
+      this.setVelocityX(0);
+      if (time >= this.recoverUntil) this.fsm = ZState.PATROL;
+      return;
+    }
 
     // PATROL / 追击
     const dx = player.x - this.x;
@@ -66,7 +113,8 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       && player.fsm !== 'dead'; // 'dead' 即 Player 的 PState.DEAD
 
     if (seen && Math.abs(dx) < this.cfg.attackRange
-        && time >= this.nextAttackAt && this.body.blocked.down) {
+        && time >= this.nextAttackAt && this.body.blocked.down
+        && this.acquireMeleeToken()) {
       this.fsm = ZState.WINDUP;
       this.windupUntil = time + this.cfg.windupMs;
       this.dir = dx > 0 ? 1 : -1;
@@ -82,9 +130,28 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    if (seen) {
+    // 跳扑：玩家在近战射程外、跳扑射程内、同层、冷却就绪且脚踏地面时起跳
+    if (this.cfg.canLunge && seen && this.body.blocked.down
+        && time >= this.nextLungeAt
+        && Math.abs(dx) >= this.cfg.attackRange && Math.abs(dx) <= this.cfg.lungeRange
+        && this.acquireMeleeToken()) {
+      this.fsm = ZState.LEAPWIND;
+      this.windupUntil = time + this.cfg.lungeWindupMs;
+      this.nextLungeAt = time + this.cfg.lungeCooldownMs; // 冷却从起意计算，被打断也照常冷却
       this.dir = dx > 0 ? 1 : -1;
-      this.setVelocityX(this.dir * this.cfg.chaseSpeed);
+      this.setVelocityX(0);
+      this.setFlipX(this.dir === -1);
+      this.setTint(0xffaa30); // 跳扑前摇：橙色，区别于近战的红色前摇
+      this.playAnimForce(`${this.animPrefix}-windup`);
+      return;
+    }
+
+    if (seen) {
+      this.dir = dx > 0 ? 1 : -1; // 始终面向玩家，便于一进射程就能出招命中
+      // 包抄：朝玩家身侧的站位点移动而非直扑重叠，多人时自然分散到两侧
+      const targetX = player.x + this.flankSide * (this.cfg.attackRange * 0.7);
+      const toTarget = targetX - this.x;
+      this.setVelocityX(Math.abs(toTarget) > 8 ? Math.sign(toTarget) * this.cfg.chaseSpeed : 0);
     } else {
       if (this.body.blocked.left) this.dir = 1;
       else if (this.body.blocked.right) this.dir = -1;
@@ -122,6 +189,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
     this.hpBarVisible = true;
     if (this.hp <= 0) { this.die(); return; }
     this.fsm = ZState.STAGGER;
+    if (this.scene.meleeToken === this) this.scene.meleeToken = null; // 被打出进攻状态即让出令牌
     this.staggerUntil = time + this.cfg.staggerMs;
     this.setVelocityX(Math.sign(this.x - fromX) * this.cfg.knockback);
     this.playAnimForce(`${this.animPrefix}-hurt`);
@@ -133,6 +201,7 @@ export default class Zombie extends Phaser.Physics.Arcade.Sprite {
 
   die() {
     this.fsm = ZState.DEAD;
+    if (this.scene.meleeToken === this) this.scene.meleeToken = null; // 死亡即让出令牌
     this.body.enable = false;
     this.clearTint();
     this.hpBar.destroy();

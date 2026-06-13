@@ -46,6 +46,8 @@ export default class BootScene extends Phaser.Scene {
       this.makeAliasFromFrame('tilePlatform', 'tiles', 1, 32, 12);
     }
     this.makeRectTexture('door', 40, 56, 0x8a6a2a, 0xc0a050);
+    // 弓手：无外部素材，始终用青色占位方块
+    if (!this.textures.exists('archer')) this.makeRectTexture('archer', 24, 44, 0x33c0c0, 0x66e0e0);
 
     // 细胞与 Boss 光弹：始终用代码生成，无外部素材
     const g = this.add.graphics();
@@ -54,6 +56,11 @@ export default class BootScene extends Phaser.Scene {
     g.clear();
     g.fillStyle(0xffa030, 1).fillCircle(5, 5, 5);
     g.generateTexture('projectile', 10, 10);
+    g.clear();
+    // 尖刺：32×16 红色锯齿（4 个朝上三角）
+    g.fillStyle(0xcc3344, 1);
+    for (let i = 0; i < 4; i += 1) g.fillTriangle(i * 8, 16, i * 8 + 4, 2, i * 8 + 8, 16);
+    g.generateTexture('spike', 32, 16);
     g.destroy();
 
     // 注册动画：素材缺失（failed）或 frames 为 0（未切出）的跳过
