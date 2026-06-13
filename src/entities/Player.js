@@ -23,6 +23,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.atkMult = 1;
     this.flatBonus = 0;
     this.cells = 0;
+    this.coins = 0;          // 金币：仅用于商店购买，独立于 cells
     this.fsm = PState.MOVE;
     this.facing = 1;               // 1=右 -1=左
     this.canDoubleJump = false;
@@ -69,11 +70,15 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.flatBonus = Math.floor(this.cells / 10) * CELL.perTen;
   }
 
+  addCoins(n) {
+    this.coins += n;
+  }
+
   // 进 Boss 房携带 / 调试兜底
   getState() {
     return {
       hp: this.hp, maxHp: this.maxHp, weaponKey: this.weaponKey,
-      atkMult: this.atkMult, flatBonus: this.flatBonus, cells: this.cells,
+      atkMult: this.atkMult, flatBonus: this.flatBonus, cells: this.cells, coins: this.coins,
     };
   }
 
@@ -85,6 +90,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.atkMult = s.atkMult;
     this.flatBonus = s.flatBonus;
     this.cells = s.cells;
+    this.coins = s.coins || 0;   // 兼容旧状态（无 coins 字段）
   }
 
   // 由 GameScene 移入：攻击范围与持续时间读当前武器
