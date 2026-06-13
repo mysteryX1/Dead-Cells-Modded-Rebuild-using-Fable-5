@@ -79,6 +79,9 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
   execute(move, time) {
     if (move === 'dash') {
       this.fsm = BState.DASH;
+      // 起步已贴墙则反向冲，保证横穿全场而非原地空放
+      if (this.body.blocked[this.dir > 0 ? 'right' : 'left']) this.dir *= -1;
+      this.setFlipX(this.dir === -1);
       this.setVelocityX(this.dir * BOSS.dash.speed);
       return;
     }
