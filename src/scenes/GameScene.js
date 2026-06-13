@@ -101,8 +101,10 @@ export default class GameScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keyRestart)) this.scene.restart();
       return;
     }
+    // 每帧统一消费一次 W 键，避免标志跨帧残留导致被动触发
+    const wPressed = Phaser.Input.Keyboard.JustDown(this.keyEnter);
     this.player.update(time);
-    const wConsumed = this.updatePickups();
+    const wConsumed = this.updatePickups(wPressed);
     this.updateCells(delta);
     this.zombies.forEach((z) => { if (z.active) z.update(time); });
     this.drawUI();
@@ -114,30 +116,41 @@ export default class GameScene extends Phaser.Scene {
       this.doorHint.setText(this.remaining === 0
         ? '按 W 进入' : `还有 ${this.remaining} 个敌人，清空后才能进入`);
     }
-    if (!wConsumed && this.remaining === 0 && nearDoor
-        && Phaser.Input.Keyboard.JustDown(this.keyEnter)) {
+    if (!wConsumed && this.remaining === 0 && nearDoor && wPressed) {
       this.showBanner('通关！', '#ffd700');
     }
   }
 
   // 返回 true 表示本帧 W 已被武器拾取消耗（优先于门）
-  updatePickups() {
-    let hintShown = false;
+  updatePickups(wPressed) {
+    // 卷轴：碰到自动拾取，遍历快照避免在迭代中修改数组
     for (const p of [...this.pickups]) {
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y);
       if (p.kind === 'scroll' && d < 24) {
         this.applyScroll(p);
-      } else if (p.kind === 'weapon' && d < 40 && !hintShown) {
-        hintShown = true;
-        this.pickupHint.setPosition(p.x, p.y - 32)
-          .setText(`按 W 拾取${WEAPONS[p.id].name}`).setVisible(true);
-        if (Phaser.Input.Keyboard.JustDown(this.keyEnter)) {
-          this.swapWeapon(p);
-          return true;
-        }
       }
     }
-    if (!hintShown) this.pickupHint.setVisible(false);
+    // 武器：取 40px 内距离最近的一个
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const p of this.pickups) {
+      if (p.kind !== 'weapon') continue;
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y);
+      if (d < 40 && d < nearestDist) {
+        nearestDist = d;
+        nearest = p;
+      }
+    }
+    if (nearest) {
+      this.pickupHint.setPosition(nearest.x, nearest.y - 32)
+        .setText(`按 W 拾取${WEAPONS[nearest.id].name}`).setVisible(true);
+      if (wPressed) {
+        this.swapWeapon(nearest);
+        return true;
+      }
+    } else {
+      this.pickupHint.setVisible(false);
+    }
     return false;
   }
 
