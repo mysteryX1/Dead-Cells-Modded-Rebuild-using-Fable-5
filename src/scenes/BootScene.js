@@ -54,6 +54,9 @@ export default class BootScene extends Phaser.Scene {
     g.fillStyle(0x8a5cf5, 1).fillCircle(3, 3, 3);
     g.generateTexture('cell', 6, 6);
     g.clear();
+    g.fillStyle(0xffd24a, 1).fillCircle(4, 4, 4);   // 金币：金色圆，商店货币
+    g.generateTexture('coin', 8, 8);
+    g.clear();
     g.fillStyle(0xffa030, 1).fillCircle(5, 5, 5);
     g.generateTexture('projectile', 10, 10);
     g.clear();
